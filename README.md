@@ -1,6 +1,13 @@
 # CopyWheel
 
 <p align="center">
+  <a href="https://github.com/weselski/copywheel/releases/latest"><img src="https://img.shields.io/github/v/release/weselski/copywheel?label=release" alt="Latest release"></a>
+  <a href="https://github.com/weselski/copywheel/releases"><img src="https://img.shields.io/github/downloads/weselski/copywheel/total" alt="Downloads"></a>
+  <a href="https://github.com/weselski/copywheel/actions"><img src="https://github.com/weselski/copywheel/actions/workflows/build.yml/badge.svg" alt="Build"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT"></a>
+</p>
+
+<p align="center">
   <img src="docs/demo.gif" width="360" alt="CopyWheel demo: a radial menu appears at the cursor, hovering highlights segments, clicking copies the snippet" />
 </p>
 
