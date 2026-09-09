@@ -46,11 +46,19 @@ Add `--no-quarantine` to the install command to skip the Gatekeeper warning for 
 
 Download `CopyWheel.dmg` from the [latest release](https://github.com/weselski/copywheel/releases/latest), open it and drag `CopyWheel.app` into `Applications`.
 
-The app is ad-hoc signed (no Apple Developer certificate), so on first launch macOS will warn you. Either right-click the app → **Open**, or remove the quarantine flag:
-
-```sh
-xattr -dr com.apple.quarantine /Applications/CopyWheel.app
-```
+> [!IMPORTANT]
+> **macOS will block the first launch** ("CopyWheel cannot be opened") because the app is not notarized — there's no paid Apple Developer certificate behind it. This is expected and the app is fine:
+>
+> 1. Try to open CopyWheel once (double-click, dismiss the warning).
+> 2. Open **System Settings → Privacy & Security**, scroll down to the message about CopyWheel and click **"Open Anyway"**, then confirm.
+>
+> This is only needed once per installed version. Alternatively, skip the dialog entirely by removing the quarantine flag:
+>
+> ```sh
+> xattr -dr com.apple.quarantine /Applications/CopyWheel.app
+> ```
+>
+> (or install via Homebrew with `--no-quarantine`).
 
 ## Build & run
 
