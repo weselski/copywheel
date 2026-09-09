@@ -15,6 +15,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install create-dmg
+        run: brew install create-dmg
+
       - name: Build app bundle and disk image
         run: make dmg
 
