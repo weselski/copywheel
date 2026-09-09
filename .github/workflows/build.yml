@@ -55,7 +55,11 @@ jobs:
             -e "s/^  version .*/  version \"$VERSION\"/" \
             -e "s/^  sha256 .*/  sha256 \"$SHA\"/" \
             Casks/copywheel.rb
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -am "copywheel $VERSION"
-          git push
+          if git diff --quiet; then
+            echo "Cask already up to date."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit -am "copywheel $VERSION"
+            git push
+          fi
