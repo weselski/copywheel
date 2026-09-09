@@ -2,11 +2,13 @@ import AppKit
 import SwiftUI
 
 /// Zeigt das Rad als randloses, nicht-aktivierendes Panel am Mauszeiger.
+/// Hover und Klicks werden über ein NSTrackingArea (.activeAlways) auf der
+/// Hosting-View verarbeitet – SwiftUI-Hover-Modifier funktionieren in
+/// nicht-aktivierenden Panels nicht zuverlässig.
 final class WheelController {
     static let shared = WheelController()
 
     private var panel: WheelPanel?
-    private let wheelSize: CGFloat = 340
 
     var isVisible: Bool { panel != nil }
 
@@ -23,6 +25,7 @@ final class WheelController {
             return
         }
 
+        let wheelSize = WheelLayout.size
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
         var origin = NSPoint(x: mouse.x - wheelSize / 2, y: mouse.y - wheelSize / 2)
@@ -44,16 +47,29 @@ final class WheelController {
         panel.collectionBehavior = [.canJoinAllSpaces, .transient, .fullScreenAuxiliary]
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
+        panel.acceptsMouseMovedEvents = true
 
-        let view = WheelView(
-            snippets: snippets,
-            onSelect: { [weak self] snippet in self?.copyAndClose(snippet) },
-            onDismiss: { [weak self] in self?.hide() }
-        )
-        panel.contentView = NSHostingView(rootView: view)
+        let state = WheelState()
+        let count = snippets.count
+        let hosting = WheelHostingView(rootView: WheelView(snippets: snippets, state: state))
+
+        hosting.onMouseMoved = { point in
+            state.hoveredIndex = WheelLayout.index(at: point, count: count)
+        }
+        hosting.onMouseExited = {
+            state.hoveredIndex = nil
+        }
+        hosting.onMouseDown = { [weak self] point in
+            if let index = WheelLayout.index(at: point, count: count) {
+                self?.select(index, snippets: snippets, state: state)
+            } else {
+                self?.hide()
+            }
+        }
+        panel.contentView = hosting
 
         panel.onKeyDown = { [weak self] event in
-            self?.handleKey(event, snippets: snippets) ?? false
+            self?.handleKey(event, snippets: snippets, state: state) ?? false
         }
         panel.onResignKey = { [weak self] in self?.hide() }
 
@@ -67,29 +83,76 @@ final class WheelController {
         panel = nil
     }
 
-    private func handleKey(_ event: NSEvent, snippets: [Snippet]) -> Bool {
+    private func handleKey(_ event: NSEvent, snippets: [Snippet], state: WheelState) -> Bool {
         if event.keyCode == 53 { // Escape
             hide()
             return true
         }
         if let chars = event.charactersIgnoringModifiers,
            let digit = Int(chars), digit >= 1, digit <= min(snippets.count, 9) {
-            copyAndClose(snippets[digit - 1])
+            select(digit - 1, snippets: snippets, state: state)
             return true
         }
         return false
     }
 
-    private func copyAndClose(_ snippet: Snippet) {
+    private func select(_ index: Int, snippets: [Snippet], state: WheelState) {
+        guard state.copiedIndex == nil, snippets.indices.contains(index) else { return }
+        state.copiedIndex = index
+
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(snippet.text, forType: .string)
+        pasteboard.setString(snippets[index].text, forType: .string)
 
         // Kurz das "Kopiert!"-Feedback stehen lassen, dann schließen.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
             self?.hide()
         }
     }
+}
+
+/// Hosting-View mit eigenem Maus-Tracking (funktioniert unabhängig davon,
+/// ob Fenster/App aktiv sind) in Panel-Koordinaten mit y nach unten.
+final class WheelHostingView: NSHostingView<WheelView> {
+    var onMouseMoved: ((CGPoint) -> Void)?
+    var onMouseDown: ((CGPoint) -> Void)?
+    var onMouseExited: (() -> Void)?
+
+    private var trackingArea: NSTrackingArea?
+
+    required init(rootView: WheelView) {
+        super.init(rootView: rootView)
+    }
+
+    @objc required dynamic init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea { removeTrackingArea(trackingArea) }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    private func location(of event: NSEvent) -> CGPoint {
+        var point = convert(event.locationInWindow, from: nil)
+        if !isFlipped {
+            point.y = bounds.height - point.y
+        }
+        return point
+    }
+
+    override func mouseEntered(with event: NSEvent) { onMouseMoved?(location(of: event)) }
+    override func mouseMoved(with event: NSEvent) { onMouseMoved?(location(of: event)) }
+    override func mouseExited(with event: NSEvent) { onMouseExited?() }
+    override func mouseDown(with event: NSEvent) { onMouseDown?(location(of: event)) }
 }
 
 /// Panel, das Key-Events annehmen kann, ohne die App zu aktivieren.
