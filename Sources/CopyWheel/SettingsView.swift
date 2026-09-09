@@ -31,8 +31,22 @@ struct SettingsView: View {
                         HStack(alignment: .top, spacing: 8) {
                             TextField("Titel", text: $snippet.title)
                                 .frame(width: 140)
-                            TextField("Text", text: $snippet.text, axis: .vertical)
-                                .lineLimit(1...4)
+                            if snippet.isSecret {
+                                SecureField("Text", text: $snippet.text)
+                            } else {
+                                TextField("Text", text: $snippet.text, axis: .vertical)
+                                    .lineLimit(1...4)
+                            }
+                            Button {
+                                snippet.isSecret.toggle()
+                            } label: {
+                                Image(systemName: snippet.isSecret ? "lock.fill" : "lock.open")
+                                    .foregroundStyle(snippet.isSecret ? Color.accentColor : Color.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help(snippet.isSecret
+                                ? "Wird im macOS-Schlüsselbund gespeichert"
+                                : "Als Geheimnis im Schlüsselbund speichern")
                             Button {
                                 store.snippets.removeAll { $0.id == snippet.id }
                             } label: {

@@ -26,6 +26,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             WheelController.shared.toggle()
         }
 
+        // Intro beim allerersten Start (bzw. erzwungen via --onboarding zum Testen)
+        let needsOnboarding = SnippetStore.shared.isFirstLaunch
+            && !UserDefaults.standard.bool(forKey: "didShowOnboarding")
+        if needsOnboarding || CommandLine.arguments.contains("--onboarding") {
+            UserDefaults.standard.set(true, forKey: "didShowOnboarding")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                OnboardingWindowController.shared.show()
+            }
+        }
+
         // Für Entwicklung/Tests: `CopyWheel --demo` zeigt das Rad sofort an.
         if CommandLine.arguments.contains("--demo") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {

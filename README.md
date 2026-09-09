@@ -14,12 +14,24 @@ Existing pie menus for macOS are either paid and closed source (Radial, PowerCli
 - 📋 Click a segment (or press <kbd>1</kbd>–<kbd>9</kbd>) → snippet lands in the clipboard
 - ⚙️ Simple settings window: edit/reorder snippets, record your own hotkey, launch at login
 - 🖱️ Works great with extra mouse buttons: map the button to the hotkey in Logi Options+ / your mouse driver
+- 🔐 Secret snippets (tokens, passwords) are stored in the **macOS Keychain**, not on disk, and masked in the wheel
+- 👋 First-launch onboarding with common presets (email, phone, address, token, password)
 - 🪶 Native Swift (AppKit + SwiftUI), a few hundred lines, no background bloat
-- 💾 Snippets stored as plain JSON in `~/Library/Application Support/CopyWheel/snippets.json`
+- 💾 Regular snippets stored as plain JSON in `~/Library/Application Support/CopyWheel/snippets.json`
 
 ## Install
 
-Download `CopyWheel.zip` from the [latest release](https://github.com/weselski/copywheel/releases/latest), unzip it and move `CopyWheel.app` to `/Applications`.
+### Homebrew
+
+```sh
+brew install --cask weselski/tap/copywheel
+```
+
+Add `--no-quarantine` to skip the Gatekeeper warning for this unsigned app.
+
+### Manual
+
+Download `CopyWheel.dmg` from the [latest release](https://github.com/weselski/copywheel/releases/latest), open it and drag `CopyWheel.app` into `Applications`.
 
 The app is ad-hoc signed (no Apple Developer certificate), so on first launch macOS will warn you. Either right-click the app → **Open**, or remove the quarantine flag:
 

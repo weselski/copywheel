@@ -110,7 +110,7 @@ struct WheelView: View {
                         Text(snippets[index].title)
                             .font(.system(size: 12, weight: .bold))
                             .lineLimit(1)
-                        Text(snippets[index].text)
+                        Text(snippets[index].isSecret ? String(repeating: "•", count: 8) : snippets[index].text)
                             .font(.system(size: 10))
                             .foregroundStyle(.secondary)
                             .lineLimit(3)
