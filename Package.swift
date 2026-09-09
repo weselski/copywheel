@@ -5,7 +5,13 @@ let package = Package(
     name: "CopyWheel",
     platforms: [.macOS(.v13)],
     dependencies: [
-        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.0.0"),
+        // Fork mit Fix: Ressourcen-Bundle-Auflösung crasht nicht, wenn die
+        // App per "swift build" gebaut und manuell gebundelt wird.
+        // (Upstream: sindresorhus/KeyboardShortcuts 2.4.0)
+        .package(
+            url: "https://github.com/weselski/KeyboardShortcuts",
+            revision: "ae40bf368f5c4dee7b03d02c024e12e44a945e34"
+        ),
     ],
     targets: [
         .executableTarget(
