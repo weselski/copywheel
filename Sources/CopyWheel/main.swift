@@ -36,6 +36,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        // Für Entwicklung/Tests: `CopyWheel --settings` öffnet direkt die Einstellungen.
+        if CommandLine.arguments.contains("--settings") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                SettingsWindowController.shared.show()
+            }
+        }
+
         // Für Entwicklung/Tests: `CopyWheel --demo` zeigt das Rad sofort an.
         if CommandLine.arguments.contains("--demo") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {

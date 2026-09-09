@@ -12,6 +12,7 @@ bundle: build
 	mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources
 	cp .build/release/$(APP) $(BUNDLE)/Contents/MacOS/$(APP)
 	cp Resources/Info.plist $(BUNDLE)/Contents/Info.plist
+	cp -R .build/release/*.bundle $(BUNDLE)/Contents/Resources/ 2>/dev/null || true
 	codesign --force -s - $(BUNDLE)
 	@echo "→ $(BUNDLE)"
 
