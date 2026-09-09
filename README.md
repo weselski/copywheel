@@ -24,10 +24,12 @@ Existing pie menus for macOS are either paid and closed source (Radial, PowerCli
 ### Homebrew
 
 ```sh
+brew tap weselski/tap
+brew trust weselski/tap   # required once on recent Homebrew versions
 brew install --cask weselski/tap/copywheel
 ```
 
-Add `--no-quarantine` to skip the Gatekeeper warning for this unsigned app.
+Add `--no-quarantine` to the install command to skip the Gatekeeper warning for this unsigned app.
 
 ### Manual
 
