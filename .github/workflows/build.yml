@@ -34,9 +34,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/CopyWheel.zip dist/CopyWheel.dmg \
-            --title "CopyWheel $GITHUB_REF_NAME" \
-            --generate-notes
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists – skipping."
+          else
+            gh release create "$GITHUB_REF_NAME" dist/CopyWheel.zip dist/CopyWheel.dmg \
+              --title "CopyWheel $GITHUB_REF_NAME" \
+              --generate-notes
+          fi
 
       - name: Update Homebrew tap
         if: startsWith(github.ref, 'refs/tags/v')
