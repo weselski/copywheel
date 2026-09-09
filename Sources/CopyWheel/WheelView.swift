@@ -2,6 +2,11 @@ import SwiftUI
 
 /// Das radiale Menü: ein Donut aus Segmenten, eines pro Snippet.
 /// Klick auf ein Segment (oder Taste 1–9) kopiert das Snippet.
+///
+/// Hover und Klick werden zentral über die Mausposition berechnet
+/// (Winkel + Abstand vom Mittelpunkt) statt per View-Hit-Testing –
+/// `.onHover` auf überlappenden Shape-Views respektiert die
+/// Slice-Form nicht zuverlässig.
 struct WheelView: View {
     let snippets: [Snippet]
     let onSelect: (Snippet) -> Void
@@ -34,15 +39,6 @@ struct WheelView: View {
                             PieSlice(start: start, end: end, innerRatio: innerRatio)
                                 .stroke(Color.primary.opacity(0.12), lineWidth: 1)
                         )
-                        .contentShape(PieSlice(start: start, end: end, innerRatio: innerRatio))
-                        .onHover { inside in
-                            if inside {
-                                hoveredIndex = index
-                            } else if hoveredIndex == index {
-                                hoveredIndex = nil
-                            }
-                        }
-                        .onTapGesture { select(index) }
                         .scaleEffect(isHovered ? 1.03 : 1.0)
                         .animation(.spring(response: 0.2, dampingFraction: 0.7), value: hoveredIndex)
 
@@ -63,11 +59,29 @@ struct WheelView: View {
                         x: geo.size.width / 2 + cos(mid.radians) * labelRadius,
                         y: geo.size.height / 2 + sin(mid.radians) * labelRadius
                     )
-                    .allowsHitTesting(false)
                 }
 
                 centerCircle(radius: radius)
             }
+            .allowsHitTesting(false)
+            .contentShape(Rectangle())
+            .background(
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let point):
+                            hoveredIndex = index(at: point, in: geo.size)
+                        case .ended:
+                            hoveredIndex = nil
+                        }
+                    }
+                    .gesture(
+                        SpatialTapGesture().onEnded { value in
+                            handleTap(at: value.location, in: geo.size)
+                        }
+                    )
+            )
         }
         .padding(6)
     }
@@ -111,13 +125,41 @@ struct WheelView: View {
             }
         }
         .frame(width: radius * 2 * innerRatio - 8, height: radius * 2 * innerRatio - 8)
-        .onTapGesture { onDismiss() }
     }
 
     private func sliceColor(hovered: Bool, copied: Bool) -> Color {
         if copied { return .green }
         if hovered { return .accentColor }
         return Color(nsColor: .windowBackgroundColor).opacity(0.92)
+    }
+
+    /// Ermittelt das Segment unter dem Punkt aus Winkel und Abstand zum
+    /// Mittelpunkt. Gibt nil zurück für die Mitte und außerhalb des Rads.
+    private func index(at point: CGPoint, in size: CGSize) -> Int? {
+        guard !snippets.isEmpty else { return nil }
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let dx = point.x - center.x
+        let dy = point.y - center.y
+        let distance = sqrt(dx * dx + dy * dy)
+        let radius = min(size.width, size.height) / 2
+        guard distance >= radius * innerRatio, distance <= radius else { return nil }
+
+        let segment = 360.0 / Double(snippets.count)
+        // atan2 im y-nach-unten-Koordinatensystem, 0° = rechts; Segment 0
+        // ist um -90° (oben) zentriert.
+        var degrees = atan2(dy, dx) * 180 / .pi
+        degrees = (degrees + 90 + segment / 2).truncatingRemainder(dividingBy: 360)
+        if degrees < 0 { degrees += 360 }
+        let index = Int(degrees / segment)
+        return snippets.indices.contains(index) ? index : nil
+    }
+
+    private func handleTap(at point: CGPoint, in size: CGSize) {
+        if let index = index(at: point, in: size) {
+            select(index)
+        } else {
+            onDismiss()
+        }
     }
 
     func select(_ index: Int) {
