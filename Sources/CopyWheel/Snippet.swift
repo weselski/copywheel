@@ -15,6 +15,16 @@ struct Snippet: Identifiable, Codable, Equatable {
         self.isSecret = isSecret
     }
 
+    /// Beispieldaten für den Demo-Modus (--demo), damit Aufnahmen und
+    /// Screenshots nie echte Nutzerdaten zeigen.
+    static let demo: [Snippet] = [
+        Snippet(title: "E-Mail", text: "max@example.com"),
+        Snippet(title: "Telefon", text: "+49 123 4567890"),
+        Snippet(title: "Adresse", text: "Musterstraße 1, 12345 Musterstadt"),
+        Snippet(title: "Grußformel", text: "Viele Grüße\nMax"),
+        Snippet(title: "API-Token", text: "demo-1234", isSecret: true),
+    ]
+
     private enum CodingKeys: String, CodingKey { case id, title, text, isSecret }
 
     init(from decoder: Decoder) throws {

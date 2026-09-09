@@ -19,7 +19,9 @@ final class WheelController {
     func show() {
         guard panel == nil else { return }
 
-        let snippets = SnippetStore.shared.snippets
+        let snippets = CommandLine.arguments.contains("--demo")
+            ? Snippet.demo
+            : SnippetStore.shared.snippets
         guard !snippets.isEmpty else {
             SettingsWindowController.shared.show()
             return
@@ -42,7 +44,9 @@ final class WheelController {
         )
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        // Schatten zeichnet die View selbst – Fensterschatten flackert
+        // bei der Einblend-Animation.
+        panel.hasShadow = false
         panel.level = .popUpMenu
         panel.collectionBehavior = [.canJoinAllSpaces, .transient, .fullScreenAuxiliary]
         panel.isReleasedWhenClosed = false

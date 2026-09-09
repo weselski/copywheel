@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Geometrie des Rads an einer Stelle, damit Zeichnung (SwiftUI) und
 /// Hit-Testing (AppKit, im Controller) garantiert übereinstimmen.
@@ -35,13 +36,32 @@ final class WheelState: ObservableObject {
     @Published var copiedIndex: Int? = nil
 }
 
-/// Das radiale Menü: ein Donut aus Segmenten, eines pro Snippet.
+/// Echter macOS-Blur als Basis des Rads.
+struct VisualEffectView: NSViewRepresentable {
+    var material: NSVisualEffectView.Material
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+    }
+}
+
+/// Das radiale Menü: Frosted-Glass-Donut mit einem Segment pro Snippet.
 /// Rein visuell – Maus-Handling übernimmt der WheelController über
 /// ein NSTrackingArea, weil SwiftUI-Hover in nicht-aktivierenden
 /// Panels unzuverlässig ist.
 struct WheelView: View {
     let snippets: [Snippet]
     @ObservedObject var state: WheelState
+
+    @State private var appeared = false
 
     var body: some View {
         GeometryReader { geo in
@@ -50,6 +70,11 @@ struct WheelView: View {
             let segment = 360.0 / Double(count)
 
             ZStack {
+                // Frosted-Glass-Grundfläche
+                VisualEffectView(material: .hudWindow)
+                    .clipShape(Circle())
+                    .overlay(Circle().strokeBorder(Color.primary.opacity(0.14), lineWidth: 1))
+
                 ForEach(Array(snippets.enumerated()), id: \.element.id) { index, snippet in
                     let start = Angle(degrees: -90 - segment / 2 + Double(index) * segment)
                     let end = Angle(degrees: start.degrees + segment)
@@ -57,36 +82,56 @@ struct WheelView: View {
                     let labelRadius = radius * (1 + WheelLayout.innerRatio) / 2
                     let isHovered = state.hoveredIndex == index
                     let isCopied = state.copiedIndex == index
+                    let pop: CGFloat = (isHovered || isCopied) ? 5 : 0
+                    let popX = cos(mid.radians) * pop
+                    let popY = sin(mid.radians) * pop
 
-                    PieSlice(start: start, end: end, innerRatio: WheelLayout.innerRatio)
-                        .fill(sliceColor(hovered: isHovered, copied: isCopied))
-                        .overlay(
-                            PieSlice(start: start, end: end, innerRatio: WheelLayout.innerRatio)
-                                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-                        )
-                        .scaleEffect(isHovered ? 1.03 : 1.0)
-                        .animation(.spring(response: 0.2, dampingFraction: 0.7), value: state.hoveredIndex)
+                    Group {
+                        PieSlice(start: start, end: end, innerRatio: WheelLayout.innerRatio)
+                            .fill(sliceStyle(hovered: isHovered, copied: isCopied))
+                            .overlay(
+                                PieSlice(start: start, end: end, innerRatio: WheelLayout.innerRatio)
+                                    .stroke(Color.primary.opacity(0.10), lineWidth: 0.5)
+                            )
+                            .shadow(
+                                color: glowColor(hovered: isHovered, copied: isCopied),
+                                radius: 10
+                            )
 
-                    VStack(spacing: 2) {
-                        if index < 9 {
-                            Text("\(index + 1)")
-                                .font(.system(size: 10, weight: .bold, design: .rounded))
-                                .foregroundStyle(.secondary)
+                        VStack(spacing: 2) {
+                            if index < 9 {
+                                Text("\(index + 1)")
+                                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                                    .foregroundStyle(isHovered || isCopied ? Color.white.opacity(0.75) : Color.secondary)
+                            }
+                            Text(snippet.title)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(isHovered || isCopied ? Color.white : Color.primary)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: radius * 0.55)
                         }
-                        Text(snippet.title)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(isHovered ? Color.white : Color.primary)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: radius * 0.55)
+                        .scaleEffect(isHovered ? 1.06 : 1.0)
+                        .position(
+                            x: geo.size.width / 2 + cos(mid.radians) * labelRadius,
+                            y: geo.size.height / 2 + sin(mid.radians) * labelRadius
+                        )
                     }
-                    .position(
-                        x: geo.size.width / 2 + cos(mid.radians) * labelRadius,
-                        y: geo.size.height / 2 + sin(mid.radians) * labelRadius
-                    )
+                    .offset(x: popX, y: popY)
+                    .animation(.spring(response: 0.22, dampingFraction: 0.7), value: state.hoveredIndex)
+                    .animation(.spring(response: 0.22, dampingFraction: 0.7), value: state.copiedIndex)
                 }
 
                 centerCircle(radius: radius)
+            }
+            .compositingGroup()
+            .shadow(color: .black.opacity(0.3), radius: 16, y: 5)
+            .scaleEffect(appeared ? 1 : 0.82)
+            .opacity(appeared ? 1 : 0)
+            .onAppear {
+                withAnimation(.spring(response: 0.26, dampingFraction: 0.72)) {
+                    appeared = true
+                }
             }
         }
         .padding(WheelLayout.inset)
@@ -95,8 +140,8 @@ struct WheelView: View {
     private func centerCircle(radius: CGFloat) -> some View {
         ZStack {
             Circle()
-                .fill(Color(nsColor: .windowBackgroundColor).opacity(0.97))
-                .overlay(Circle().stroke(Color.primary.opacity(0.12), lineWidth: 1))
+                .fill(Color(nsColor: .windowBackgroundColor).opacity(0.55))
+                .overlay(Circle().strokeBorder(Color.primary.opacity(0.14), lineWidth: 1))
 
             if let index = state.copiedIndex ?? state.hoveredIndex, snippets.indices.contains(index) {
                 VStack(spacing: 4) {
@@ -104,6 +149,7 @@ struct WheelView: View {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.title2)
                             .foregroundStyle(.green)
+                            .transition(.scale(scale: 0.5).combined(with: .opacity))
                         Text("Kopiert!")
                             .font(.system(size: 12, weight: .semibold))
                     } else {
@@ -117,10 +163,11 @@ struct WheelView: View {
                             .multilineTextAlignment(.center)
                     }
                 }
-                .padding(8)
-                .frame(maxWidth: radius * 2 * WheelLayout.innerRatio - 24)
+                .padding(6)
+                .frame(maxWidth: radius * 2 * WheelLayout.innerRatio - 12)
+                .animation(.spring(response: 0.22, dampingFraction: 0.7), value: state.copiedIndex)
             } else {
-                VStack(spacing: 2) {
+                VStack(spacing: 3) {
                     Image(systemName: "doc.on.doc")
                         .font(.title3)
                         .foregroundStyle(.secondary)
@@ -136,10 +183,26 @@ struct WheelView: View {
         )
     }
 
-    private func sliceColor(hovered: Bool, copied: Bool) -> Color {
-        if copied { return .green }
-        if hovered { return .accentColor }
-        return Color(nsColor: .windowBackgroundColor).opacity(0.92)
+    private func sliceStyle(hovered: Bool, copied: Bool) -> AnyShapeStyle {
+        if copied {
+            return AnyShapeStyle(LinearGradient(
+                colors: [Color.green, Color.green.opacity(0.7)],
+                startPoint: .top, endPoint: .bottom
+            ))
+        }
+        if hovered {
+            return AnyShapeStyle(LinearGradient(
+                colors: [Color.accentColor, Color.accentColor.opacity(0.7)],
+                startPoint: .top, endPoint: .bottom
+            ))
+        }
+        return AnyShapeStyle(Color.primary.opacity(0.035))
+    }
+
+    private func glowColor(hovered: Bool, copied: Bool) -> Color {
+        if copied { return Color.green.opacity(0.5) }
+        if hovered { return Color.accentColor.opacity(0.5) }
+        return .clear
     }
 }
 

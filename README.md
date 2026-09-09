@@ -1,5 +1,9 @@
 # CopyWheel
 
+<p align="center">
+  <img src="docs/demo.gif" width="360" alt="CopyWheel demo: a radial menu appears at the cursor, hovering highlights segments, clicking copies the snippet" />
+</p>
+
 A tiny, native macOS menu bar app that does exactly one thing: press a hotkey and a **radial menu appears at your mouse cursor** — click a segment and that snippet is **copied to your clipboard**.
 
 No Electron, no clipboard history, no automation platform. Just a wheel of your snippets.
