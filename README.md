@@ -17,6 +17,16 @@ Existing pie menus for macOS are either paid and closed source (Radial, PowerCli
 - 🪶 Native Swift (AppKit + SwiftUI), a few hundred lines, no background bloat
 - 💾 Snippets stored as plain JSON in `~/Library/Application Support/CopyWheel/snippets.json`
 
+## Install
+
+Download `CopyWheel.zip` from the [latest release](https://github.com/weselski/copywheel/releases/latest), unzip it and move `CopyWheel.app` to `/Applications`.
+
+The app is ad-hoc signed (no Apple Developer certificate), so on first launch macOS will warn you. Either right-click the app → **Open**, or remove the quarantine flag:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/CopyWheel.app
+```
+
 ## Build & run
 
 Requires macOS 13+ and Xcode command line tools.
