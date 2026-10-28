@@ -19,19 +19,26 @@ final class WheelController {
     func show() {
         guard panel == nil else { return }
 
-        let snippets = CommandLine.arguments.contains("--demo")
-            ? Snippet.demo
-            : SnippetStore.shared.snippets
-        guard !snippets.isEmpty else {
+        let isDemo = CommandLine.arguments.contains("--demo")
+        let snippets = isDemo ? Snippet.demo : SnippetStore.shared.snippets
+        let history = isDemo ? Snippet.demoHistory : ClipboardHistory.shared.entries
+        let rings = [
+            snippets.map(WheelItem.init(snippet:)),
+            history.enumerated().map { WheelItem(historyText: $1, position: $0) },
+        ].filter { !$0.isEmpty }
+        guard !rings.isEmpty else {
             SettingsWindowController.shared.show()
             return
         }
 
-        let wheelSize = WheelLayout.size
+        let layout = WheelLayout(counts: rings.map(\.count))
+        let wheelSize = layout.size
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
         var origin = NSPoint(x: mouse.x - wheelSize / 2, y: mouse.y - wheelSize / 2)
-        if let visible = screen?.visibleFrame {
+        // Der transparente Schattenrand darf über den Bildschirmrand ragen,
+        // nur das Rad selbst muss sichtbar bleiben.
+        if let visible = screen?.visibleFrame.insetBy(dx: -WheelLayout.inset, dy: -WheelLayout.inset) {
             origin.x = min(max(origin.x, visible.minX), visible.maxX - wheelSize)
             origin.y = min(max(origin.y, visible.minY), visible.maxY - wheelSize)
         }
@@ -54,18 +61,23 @@ final class WheelController {
         panel.acceptsMouseMovedEvents = true
 
         let state = WheelState()
-        let count = snippets.count
-        let hosting = WheelHostingView(rootView: WheelView(snippets: snippets, state: state))
+        let hosting = WheelHostingView(rootView: WheelView(rings: rings, state: state))
 
         hosting.onMouseMoved = { point in
-            state.hoveredIndex = WheelLayout.index(at: point, count: count)
+            // Nach Pfeiltasten-Navigation übernimmt die Maus erst wieder,
+            // wenn sie auf ein Segment zeigt – leichtes Wackeln in der Mitte
+            // soll die Auswahl nicht löschen.
+            let target = layout.target(at: point)
+            guard target != nil || !state.isKeyboardNavigating else { return }
+            state.isKeyboardNavigating = false
+            state.hovered = target
         }
         hosting.onMouseExited = {
-            state.hoveredIndex = nil
+            state.hovered = nil
         }
         hosting.onMouseDown = { [weak self] point in
-            if let index = WheelLayout.index(at: point, count: count) {
-                self?.select(index, snippets: snippets, state: state)
+            if let target = layout.target(at: point) {
+                self?.select(target, rings: rings, state: state)
             } else {
                 self?.hide()
             }
@@ -73,7 +85,7 @@ final class WheelController {
         panel.contentView = hosting
 
         panel.onKeyDown = { [weak self] event in
-            self?.handleKey(event, snippets: snippets, state: state) ?? false
+            self?.handleKey(event, rings: rings, layout: layout, state: state) ?? false
         }
         panel.onResignKey = { [weak self] in self?.hide() }
 
@@ -87,26 +99,71 @@ final class WheelController {
         panel = nil
     }
 
-    private func handleKey(_ event: NSEvent, snippets: [Snippet], state: WheelState) -> Bool {
-        if event.keyCode == 53 { // Escape
+    private func handleKey(_ event: NSEvent, rings: [[WheelItem]], layout: WheelLayout, state: WheelState) -> Bool {
+        if [123, 124, 125, 126, 48].contains(event.keyCode) {
+            state.isKeyboardNavigating = true
+        }
+        switch event.keyCode {
+        case 53: // Escape
             hide()
-            return true
+        case 36, 76, 49: // Return, Enter, Leertaste
+            guard let target = state.hovered else { return true }
+            select(target, rings: rings, state: state)
+        case 124: // →  im Uhrzeigersinn
+            state.hovered = rotate(state.hovered, by: 1, layout: layout)
+        case 123: // ←  gegen den Uhrzeigersinn
+            state.hovered = rotate(state.hovered, by: -1, layout: layout)
+        case 126: // ↑  in den äußeren Ring
+            state.hovered = switchRing(state.hovered, by: 1, wrap: false, layout: layout)
+        case 125: // ↓  in den inneren Ring
+            state.hovered = switchRing(state.hovered, by: -1, wrap: false, layout: layout)
+        case 48: // Tab  Ring wechseln
+            state.hovered = switchRing(state.hovered, by: 1, wrap: true, layout: layout)
+        default:
+            if let chars = event.charactersIgnoringModifiers,
+               let digit = Int(chars), digit >= 1, digit <= min(rings[0].count, 9) {
+                select(WheelTarget(ring: 0, index: digit - 1), rings: rings, state: state)
+                return true
+            }
+            return false
         }
-        if let chars = event.charactersIgnoringModifiers,
-           let digit = Int(chars), digit >= 1, digit <= min(snippets.count, 9) {
-            select(digit - 1, snippets: snippets, state: state)
-            return true
-        }
-        return false
+        return true
     }
 
-    private func select(_ index: Int, snippets: [Snippet], state: WheelState) {
-        guard state.copiedIndex == nil, snippets.indices.contains(index) else { return }
-        state.copiedIndex = index
+    private func rotate(_ current: WheelTarget?, by step: Int, layout: WheelLayout) -> WheelTarget {
+        guard let current else { return WheelTarget(ring: 0, index: 0) }
+        let count = layout.counts[current.ring]
+        return WheelTarget(ring: current.ring, index: (current.index + step + count) % count)
+    }
 
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(snippets[index].text, forType: .string)
+    /// Wechselt den Ring und landet auf dem Segment, das dem bisherigen
+    /// am nächsten liegt.
+    private func switchRing(_ current: WheelTarget?, by step: Int, wrap: Bool, layout: WheelLayout) -> WheelTarget {
+        guard let current else { return WheelTarget(ring: 0, index: 0) }
+        let ringCount = layout.counts.count
+        var ring = current.ring + step
+        if wrap {
+            ring = (ring + ringCount) % ringCount
+        } else {
+            ring = min(max(ring, 0), ringCount - 1)
+        }
+        guard ring != current.ring else { return current }
+        let fraction = Double(current.index) / Double(layout.counts[current.ring])
+        let count = layout.counts[ring]
+        return WheelTarget(ring: ring, index: Int((fraction * Double(count)).rounded()) % count)
+    }
+
+    private func select(_ target: WheelTarget, rings: [[WheelItem]], state: WheelState) {
+        guard state.copied == nil,
+              rings.indices.contains(target.ring),
+              rings[target.ring].indices.contains(target.index)
+        else { return }
+        state.copied = target
+
+        // Verlaufseinträge rutschen beim Kopieren wieder nach vorn, Snippets
+        // landen nicht im Verlauf – die hat man ja schon im Rad.
+        let item = rings[target.ring][target.index]
+        ClipboardHistory.shared.copy(item.text, isSecret: item.isSecret, remember: item.isHistory)
 
         // Kurz das "Kopiert!"-Feedback stehen lassen, dann schließen.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
@@ -166,10 +223,13 @@ final class WheelPanel: NSPanel {
 
     override var canBecomeKey: Bool { true }
 
-    override func keyDown(with event: NSEvent) {
-        if onKeyDown?(event) != true {
-            super.keyDown(with: event)
+    // Tasten schon hier abfangen – sonst schluckt die Hosting-View
+    // Pfeiltasten und Tab für ihre eigene Fokus-Navigation.
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown, onKeyDown?(event) == true {
+            return
         }
+        super.sendEvent(event)
     }
 
     override func resignKey() {

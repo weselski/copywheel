@@ -22,17 +22,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
         self.statusItem = statusItem
 
+        ClipboardHistory.shared.updateMonitoring()
+
         KeyboardShortcuts.onKeyDown(for: .toggleWheel) {
             WheelController.shared.toggle()
         }
 
-        // Intro beim allerersten Start (bzw. erzwungen via --onboarding zum Testen)
+        // Beim allerersten Start direkt die Einstellungen mit kurzem Tutorial
+        // zeigen (bzw. erzwungen via --onboarding zum Testen).
         let needsOnboarding = SnippetStore.shared.isFirstLaunch
             && !UserDefaults.standard.bool(forKey: "didShowOnboarding")
         if needsOnboarding || CommandLine.arguments.contains("--onboarding") {
             UserDefaults.standard.set(true, forKey: "didShowOnboarding")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                OnboardingWindowController.shared.show()
+                SettingsWindowController.shared.show(tutorial: true)
             }
         }
 

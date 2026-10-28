@@ -25,6 +25,16 @@ struct Snippet: Identifiable, Codable, Equatable {
         Snippet(title: "API-Token", text: "demo-1234", isSecret: true),
     ]
 
+    /// Verlaufseinträge für den Demo-Modus
+    static let demoHistory: [String] = [
+        "https://github.com/weselski/copywheel",
+        "Meeting um 14 Uhr?",
+        "brew install --cask copywheel",
+        "Lorem ipsum dolor sit amet",
+        "42",
+        "Danke dir!",
+    ]
+
     private enum CodingKeys: String, CodingKey { case id, title, text, isSecret }
 
     init(from decoder: Decoder) throws {
